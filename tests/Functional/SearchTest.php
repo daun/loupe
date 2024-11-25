@@ -69,6 +69,10 @@ class SearchTest extends TestCase
                     'firstname' => 'Sandra',
                 ],
                 [
+                    'id' => 7,
+                    'firstname' => 'Thomas',
+                ],
+                [
                     'id' => 2,
                     'firstname' => 'Uta',
                 ],
@@ -103,6 +107,10 @@ class SearchTest extends TestCase
                 [
                     'id' => 1,
                     'firstname' => 'Sandra',
+                ],
+                [
+                    'id' => 7,
+                    'firstname' => 'Thomas',
                 ],
                 [
                     'id' => 2,
@@ -147,6 +155,10 @@ class SearchTest extends TestCase
                     'id' => 1,
                     'firstname' => 'Sandra',
                 ],
+                [
+                    'id' => 7,
+                    'firstname' => 'Thomas',
+                ],
             ],
         ];
 
@@ -183,6 +195,10 @@ class SearchTest extends TestCase
                     'id' => 5,
                     'firstname' => 'Marko',
                 ],
+                [
+                    'id' => 7,
+                    'firstname' => 'Thomas',
+                ],
             ],
         ];
 
@@ -192,6 +208,10 @@ class SearchTest extends TestCase
                 [
                     'id' => 6,
                     'firstname' => 'Huckleberry',
+                ],
+                [
+                    'id' => 7,
+                    'firstname' => 'Thomas',
                 ],
             ],
         ];
@@ -557,6 +577,10 @@ class SearchTest extends TestCase
                     'id' => 1,
                     'firstname' => 'Sandra',
                 ],
+                [
+                    'id' => 7,
+                    'firstname' => 'Thomas',
+                ],
             ],
         ];
 
@@ -592,6 +616,10 @@ class SearchTest extends TestCase
                 [
                     'id' => 5,
                     'firstname' => 'Marko',
+                ],
+                [
+                    'id' => 7,
+                    'firstname' => 'Thomas',
                 ],
             ],
         ];
@@ -696,6 +724,10 @@ class SearchTest extends TestCase
                     'firstname' => 'Sandra',
                 ],
                 [
+                    'id' => 7,
+                    'firstname' => 'Thomas',
+                ],
+                [
                     'id' => 2,
                     'firstname' => 'Uta',
                 ],
@@ -730,6 +762,10 @@ class SearchTest extends TestCase
                 [
                     'id' => 1,
                     'firstname' => 'Sandra',
+                ],
+                [
+                    'id' => 7,
+                    'firstname' => 'Thomas',
                 ],
                 [
                     'id' => 2,
@@ -789,6 +825,79 @@ class SearchTest extends TestCase
             'huckl is my friend',
             [
             ],
+        ];
+    }
+
+    public static function negatedQueryProvider(): \Generator
+    {
+        yield 'Searching for "-Huckleberry" should return all except him' => [
+            '-huckleberry',
+            [
+                [
+                    'firstname' => 'Alexander',
+                    'lastname' => 'Abendroth',
+                ],
+                [
+                    'firstname' => 'Jonas',
+                    'lastname' => 'Kalb',
+                ],
+                [
+                    'firstname' => 'Marko',
+                    'lastname' => 'Gerste',
+                ],
+                [
+                    'firstname' => 'Sandra',
+                    'lastname' => 'Maier',
+                ],
+                [
+                    'firstname' => 'Thomas',
+                    'lastname' => 'Müller-Lüdenscheidt',
+                ],
+                [
+                    'firstname' => 'Uta',
+                    'lastname' => 'Koertig',
+                ],
+            ]
+        ];
+
+        yield 'Searching for "-Müller-Lüdenscheidt" should return all except "Müller-Lüdenscheidt"' => [
+            '-Müller-Lüdenscheidt',
+            [
+                [
+                    'firstname' => 'Alexander',
+                    'lastname' => 'Abendroth',
+                ],
+                [
+                    'firstname' => 'Huckleberry',
+                    'lastname' => 'Finn',
+                ],
+                [
+                    'firstname' => 'Jonas',
+                    'lastname' => 'Kalb',
+                ],
+                [
+                    'firstname' => 'Marko',
+                    'lastname' => 'Gerste',
+                ],
+                [
+                    'firstname' => 'Sandra',
+                    'lastname' => 'Maier',
+                ],
+                [
+                    'firstname' => 'Uta',
+                    'lastname' => 'Koertig',
+                ],
+            ]
+        ];
+
+        yield 'Searching for "Müller-Lüdenscheidt" should return "Müller-Lüdenscheidt"' => [
+            'Müller-Lüdenscheidt',
+            [
+                [
+                    'firstname' => 'Thomas',
+                    'lastname' => 'Müller-Lüdenscheidt',
+                ],
+            ]
         ];
     }
 
@@ -2106,6 +2215,9 @@ class SearchTest extends TestCase
                     'firstname' => 'Sandra',
                 ],
                 [
+                    'firstname' => 'Thomas',
+                ],
+                [
                     'firstname' => 'Uta',
                 ],
             ],
@@ -2113,7 +2225,7 @@ class SearchTest extends TestCase
             'hitsPerPage' => 20,
             'page' => 1,
             'totalPages' => 1,
-            'totalHits' => 6,
+            'totalHits' => 7,
         ]);
 
         $searchParameters = $searchParameters->withSort(['firstname:desc']);
@@ -2122,6 +2234,9 @@ class SearchTest extends TestCase
             'hits' => [
                 [
                     'firstname' => 'Uta',
+                ],
+                [
+                    'firstname' => 'Thomas',
                 ],
                 [
                     'firstname' => 'Sandra',
@@ -2143,7 +2258,7 @@ class SearchTest extends TestCase
             'hitsPerPage' => 20,
             'page' => 1,
             'totalPages' => 1,
-            'totalHits' => 6,
+            'totalHits' => 7,
         ]);
     }
 
@@ -2241,6 +2356,31 @@ class SearchTest extends TestCase
             'page' => 1,
             'totalPages' => 0,
             'totalHits' => 0,
+        ]);
+    }
+
+
+    /**
+     * @param array<mixed> $expectedResults
+     */
+    #[DataProvider('negatedQueryProvider')]
+    public function testWithNegation(string $query, array $expectedResults): void
+    {
+        $loupe = $this->setupLoupeWithDepartmentsFixture();
+
+        $searchParameters = SearchParameters::create()
+            ->withAttributesToRetrieve(['firstname', 'lastname'])
+            ->withSort(['firstname:asc'])
+            ->withQuery($query)
+        ;
+
+        $this->searchAndAssertResults($loupe, $searchParameters, [
+            'hits' => $expectedResults,
+            'query' => $query,
+            'hitsPerPage' => 20,
+            'page' => 1,
+            'totalPages' => \count($expectedResults) === 0 ? 0 : 1,
+            'totalHits' => \count($expectedResults),
         ]);
     }
 
