@@ -169,7 +169,7 @@ final class LoupeFactory
 
         foreach ($functions as $functionName => $function) {
             /** @phpstan-ignore-next-line */
-            $connection->getNativeConnection()->createFunction($functionName, $function['callback'], $function['numArgs']);
+            $connection->getNativeConnection()->createFunction($functionName, $function['callback'], $function['numArgs'], \SQLITE3_DETERMINISTIC);
         }
     }
 }
