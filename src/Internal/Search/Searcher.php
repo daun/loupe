@@ -228,8 +228,7 @@ class Searcher
         $cteSelectQb->addOrderBy('position');
 
         $cteName = $this->getCTENameForToken(self::CTE_TERM_DOCUMENT_MATCHES_PREFIX, $token);
-        $this->CTEs[$cteName]['cols'] = ['document', 'term', 'attribute', 'position'];
-        $this->CTEs[$cteName]['sql'] = $cteSelectQb->getSQL();
+        $this->addCTE($cteName, ['document', 'term', 'attribute', 'position'], $cteSelectQb->getSQL());
     }
 
     private function addTermDocumentMatchesCTEs(TokenCollection $tokenCollection): void
@@ -279,8 +278,8 @@ class Searcher
 
         $cteSelectQb->where('(' . implode(') OR (', $ors) . ')');
 
-        $this->CTEs[$this->getCTENameForToken(self::CTE_TERM_MATCHES_PREFIX, $token)]['cols'] = ['id'];
-        $this->CTEs[$this->getCTENameForToken(self::CTE_TERM_MATCHES_PREFIX, $token)]['sql'] = $cteSelectQb->getSQL();
+        $cteName = $this->getCTENameForToken(self::CTE_TERM_MATCHES_PREFIX, $token);
+        $this->addCTE($cteName, ['id'], $cteSelectQb->getSQL());
     }
 
     private function addTermMatchesCTEs(TokenCollection $tokenCollection): void
@@ -767,6 +766,17 @@ class Searcher
             ($this->searchParameters->getPage() - 1) * $this->searchParameters->getHitsPerPage()
         );
         $this->queryBuilder->setMaxResults($this->searchParameters->getHitsPerPage());
+    }
+
+    /**
+     * @param array<string> $cols
+     */
+    public function addCTE(string $name, array $cols, string $sql): void
+    {
+        $this->CTEs[$name] = [
+            'cols' => $cols,
+            'sql' => $sql,
+        ];
     }
 
     private function query(): Result
