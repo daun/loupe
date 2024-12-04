@@ -70,7 +70,8 @@ class Relevance extends AbstractSorter
         $searcher->addCTE(
             'document_relevance',
             ['document', 'score'],
-            $relevanceSelect
+            $relevanceSelect,
+            true
         );
 
         $select = sprintf(

@@ -771,11 +771,12 @@ class Searcher
     /**
      * @param array<string> $cols
      */
-    public function addCTE(string $name, array $cols, string $sql): void
+    public function addCTE(string $name, array $cols, string $sql, bool $materialized = false): void
     {
         $this->CTEs[$name] = [
             'cols' => $cols,
             'sql' => $sql,
+            'materialized' => $materialized,
         ];
     }
 
@@ -787,9 +788,10 @@ class Searcher
             $queryParts[] = 'WITH';
             foreach ($this->CTEs as $name => $config) {
                 $queryParts[] = sprintf(
-                    '%s (%s) AS (%s)',
+                    '%s (%s) AS %s (%s)',
                     $name,
                     implode(',', $config['cols']),
+                    $config['materialized'] ? 'MATERIALIZED' : '',
                     $config['sql']
                 );
                 $queryParts[] = ',';
