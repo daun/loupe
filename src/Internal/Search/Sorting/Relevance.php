@@ -28,6 +28,7 @@ class Relevance extends AbstractSorter
         }
 
         $positionsPerDocument = [];
+        $documentsPerTerm = [];
 
         foreach ($searcher->getTokens()->all() as $token) {
             // COALESCE() makes sure that if the token does not match a document, we don't have NULL but a 0 which is important
@@ -39,6 +40,11 @@ class Relevance extends AbstractSorter
                 $engine->getIndexInfo()->getAliasForTable(IndexInfo::TABLE_NAME_DOCUMENTS),
                 Searcher::RELEVANCE_ALIAS . '_per_term',
             );
+
+            $documentsPerTerm[] = sprintf(
+                "SELECT DISTINCT document FROM %s",
+                $searcher->getCTENameForToken(Searcher::CTE_TERM_DOCUMENT_MATCHES_PREFIX, $token),
+            );
         }
 
         if ($positionsPerDocument === []) {
@@ -48,16 +54,33 @@ class Relevance extends AbstractSorter
         $searchableAttributes = $engine->getConfiguration()->getSearchableAttributes();
         $weights = static::calculateIntrinsicAttributeWeights($searchableAttributes);
 
-        $select = sprintf(
-            "loupe_relevance((SELECT group_concat(%s, ';') FROM (%s)), %s, '%s') AS %s",
+        $relevanceSelect = sprintf(
+            "SELECT %s.id, loupe_relevance((SELECT group_concat(%s, ';') FROM (%s)), %s, '%s') FROM %s as %s WHERE %s.id IN (%s)",
+            $engine->getIndexInfo()->getAliasForTable(IndexInfo::TABLE_NAME_DOCUMENTS),
             Searcher::RELEVANCE_ALIAS . '_per_term',
             implode(' UNION ALL ', $positionsPerDocument),
             $searcher->getTokens()->count(),
             implode(';', array_map(fn ($attr, $weight) => "{$attr}:{$weight}", array_keys($weights), $weights)),
-            Searcher::RELEVANCE_ALIAS,
+            IndexInfo::TABLE_NAME_DOCUMENTS,
+            $engine->getIndexInfo()->getAliasForTable(IndexInfo::TABLE_NAME_DOCUMENTS),
+            $engine->getIndexInfo()->getAliasForTable(IndexInfo::TABLE_NAME_DOCUMENTS),
+            implode(' UNION ', $documentsPerTerm),
+        );
+
+        $searcher->addCTE(
+            'document_relevance',
+            ['document', 'score'],
+            $relevanceSelect
+        );
+
+        $select = sprintf(
+            'dr.score as %s',
+            Searcher::RELEVANCE_ALIAS
         );
 
         $searcher->getQueryBuilder()->addSelect($select);
+        // $searcher->getQueryBuilder()->from('document_relevance', 'dr');
+        $searcher->getQueryBuilder()->join('d', 'document_relevance', 'dr', 'd.id = dr.document');
 
         // No need to use the abstract addOrderBy() here because the relevance alias cannot be of
         // our internal null or empty value
@@ -178,6 +201,8 @@ class Relevance extends AbstractSorter
      */
     public static function fromQuery(string $positionsInDocumentPerTerm, string $totalQueryTokenCount, string $attributeWeights): float
     {
+        ray()->count('loupe_relevance');
+
         $totalQueryTokenCount = (int) $totalQueryTokenCount;
         $positionsPerTerm = static::parseTermPositions($positionsInDocumentPerTerm);
         $attributeWeightValues = static::parseAttributeWeights($attributeWeights);
