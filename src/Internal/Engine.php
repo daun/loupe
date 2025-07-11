@@ -176,9 +176,8 @@ class Engine
         // Fast route if you configured only one language
         if (\count($languages) === 1) {
             return new PreselectedLanguageDetector($languages[0]);
-        } else {
-            return new NitotmLanguageDetector($languages);
         }
+        return new NitotmLanguageDetector($languages);
     }
 
     public function getLogger(): ?LoggerInterface
