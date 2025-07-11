@@ -132,16 +132,7 @@ class Tokenizer implements TokenizerInterface
         $tokenCollectionWithVariants = new TokenCollection();
 
         foreach ($tokenCollection->all() as $token) {
-            $variants = [];
-
-            // Stem if we detected a language - but only if not part of a phrase
-            if ($language !== null && !$token->isPartOfPhrase()) {
-                $stem = $this->stem($token->getTerm(), $language);
-                if ($stem !== null && $token->getTerm() !== $stem) {
-                    $variants = [$stem];
-                }
-            }
-
+            $variants = $this->getTokenVariants($token, $language);
             $token = $token->withVariants($variants);
 
             if (!$token->isStopWord()) {
@@ -156,6 +147,24 @@ class Tokenizer implements TokenizerInterface
         }
 
         return $tokenCollectionWithVariants;
+    }
+
+    /**
+     * @return array<string>
+     */
+    protected function getTokenVariants(Token $token, ?string $language = null): array
+    {
+        $variants = [];
+
+        // Stem if we detected a language - but only if not part of a phrase
+        if ($language !== null && !$token->isPartOfPhrase()) {
+            $stem = $this->stem($token->getTerm(), $language);
+            if ($stem !== null && $token->getTerm() !== $stem) {
+                $variants = [$stem];
+            }
+        }
+
+        return $variants;
     }
 
     private function getStemmerForLanguage(string $language): ?Stemmer
