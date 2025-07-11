@@ -7,6 +7,7 @@ namespace Loupe\Loupe;
 use Loupe\Loupe\Config\TypoTolerance;
 use Loupe\Loupe\Exception\InvalidConfigurationException;
 use Loupe\Loupe\Internal\Search\Sorting\Relevance;
+use Loupe\Matcher\Tokenizer\TokenizerInterface;
 use Psr\Log\LoggerInterface;
 
 final class Configuration
@@ -69,6 +70,8 @@ final class Configuration
      * @var array<string>
      */
     private array $stopWords = [];
+
+    private ?TokenizerInterface $tokenizer = null;
 
     private TypoTolerance $typoTolerance;
 
@@ -285,6 +288,11 @@ final class Configuration
     public function getStopWords(): array
     {
         return $this->stopWords;
+    }
+
+    public function getTokenizer(): ?TokenizerInterface
+    {
+        return $this->tokenizer;
     }
 
     public function getTypoTolerance(): TypoTolerance
@@ -506,6 +514,14 @@ final class Configuration
 
         $clone = clone $this;
         $clone->stopWords = $stopWords;
+
+        return $clone;
+    }
+
+    public function withTokenizer(TokenizerInterface $tokenizer): self
+    {
+        $clone = clone $this;
+        $clone->tokenizer = $tokenizer;
 
         return $clone;
     }

@@ -14,6 +14,7 @@ use Loupe\Loupe\IndexResult;
 use Loupe\Loupe\Internal\Filter\Parser;
 use Loupe\Loupe\Internal\Index\Indexer;
 use Loupe\Loupe\Internal\Index\IndexInfo;
+use Loupe\Loupe\Internal\LanguageDetection\LanguageDetectorInterface;
 use Loupe\Loupe\Internal\LanguageDetection\NitotmLanguageDetector;
 use Loupe\Loupe\Internal\LanguageDetection\PreselectedLanguageDetector;
 use Loupe\Loupe\Internal\Search\Searcher;
@@ -23,6 +24,7 @@ use Loupe\Loupe\SearchParameters;
 use Loupe\Loupe\SearchResult;
 use Loupe\Matcher\Formatter;
 use Loupe\Matcher\Matcher;
+use Loupe\Matcher\Tokenizer\TokenizerInterface;
 use Psr\Log\LoggerInterface;
 use Toflar\StateSetIndex\Alphabet\Utf8Alphabet;
 use Toflar\StateSetIndex\Config;
@@ -45,7 +47,7 @@ class Engine
 
     private StateSetIndex $stateSetIndex;
 
-    private ?Tokenizer $tokenizer = null;
+    private ?TokenizerInterface $tokenizer = null;
 
     public function __construct(
         private Connection $connection,
@@ -167,6 +169,18 @@ class Engine
         return $this->indexInfo;
     }
 
+    public function getLanguageDetector(): LanguageDetectorInterface
+    {
+        $languages = $this->getConfiguration()->getLanguages();
+
+        // Fast route if you configured only one language
+        if (\count($languages) === 1) {
+            return new PreselectedLanguageDetector($languages[0]);
+        } else {
+            return new NitotmLanguageDetector($languages);
+        }
+    }
+
     public function getLogger(): ?LoggerInterface
     {
         return $this->getConfiguration()->getLogger();
@@ -177,22 +191,17 @@ class Engine
         return $this->stateSetIndex;
     }
 
-    public function getTokenizer(): Tokenizer
+    public function getTokenizer(): TokenizerInterface
     {
-        if ($this->tokenizer instanceof Tokenizer) {
+        if ($this->tokenizer instanceof TokenizerInterface) {
             return $this->tokenizer;
         }
 
-        $languages = $this->getConfiguration()->getLanguages();
-
-        // Fast route if you configured only one language
-        if (\count($languages) === 1) {
-            $languageDetector = new PreselectedLanguageDetector($languages[0]);
-        } else {
-            $languageDetector = new NitotmLanguageDetector($languages);
+        if ($this->configuration->getTokenizer() !== null) {
+            return $this->tokenizer = $this->configuration->getTokenizer();
         }
 
-        return $this->tokenizer = new Tokenizer($this, $languageDetector);
+        return $this->tokenizer = new Tokenizer($this, $this->getLanguageDetector());
     }
 
     public function needsReindex(): bool
