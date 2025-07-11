@@ -86,6 +86,27 @@ $configuration = \Loupe\Loupe\Configuration::create()
     ->withMaxQueryTokens(12)
 ```
 
+## Using a custom tokenizer
+
+If you want to use a custom tokenizer, you can do so by implementing the `TokenizerInterface`
+interface and passing it to Loupe's configuration:
+
+```php
+$configuration = \Loupe\Loupe\Configuration::create()
+    ->withTokenizer(new MyCustomTokenizer());
+```
+
+```php
+use Loupe\Matcher\Tokenizer\TokenizerInterface;
+
+class MyCustomTokenizer implements TokenizerInterface
+{
+    public function matches(Token $token, TokenCollection $tokens): bool;
+
+    public function tokenize(string $string, ?int $maxTokens = null, array $stopWords = [], bool $includeStopWords = false): TokenCollection;
+}
+```
+
 [Language_Detector]: https://github.com/nitotm/efficient-language-detector
 [Stemmer]: https://github.com/wamania/php-stemmer
 [N_Gram]: https://en.wikipedia.org/wiki/Word_n-gram_language_model
