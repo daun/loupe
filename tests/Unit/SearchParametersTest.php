@@ -45,6 +45,16 @@ class SearchParametersTest extends TestCase
         ]);
     }
 
+    public function testMatchingStrategyLastRoundTrip(): void
+    {
+        $params = SearchParameters::fromArray([
+            'matchingStrategy' => 'last',
+        ]);
+
+        $this->assertSame('last', $params->getMatchingStrategy());
+        $this->assertSame('last', SearchParameters::fromArray($params->toArray())->getMatchingStrategy());
+    }
+
     public function testMaxHitsPerPage(): void
     {
         $this->expectException(InvalidSearchParametersException::class);

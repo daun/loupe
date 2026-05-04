@@ -8,4 +8,5 @@ enum MatchingStrategy: string
 {
     case All = 'all';
     case Any = 'any';
+    case Last = 'last';
 }
