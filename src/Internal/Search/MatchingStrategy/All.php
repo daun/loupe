@@ -7,6 +7,10 @@ namespace Loupe\Loupe\Internal\Search\MatchingStrategy;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Loupe\Loupe\Internal\Search\Searcher;
 
+/**
+ * Matching strategy: "all"
+ * Requires all terms to match. No terms are dropped.
+ */
 final class All extends MatchingStrategy
 {
     public function apply(
