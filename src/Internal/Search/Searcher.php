@@ -259,7 +259,7 @@ class Searcher
                     round($result[self::RELEVANCE_ALIAS], 5) : 0.0;
             }
 
-            $this->formatHit($hit, $result, $tokensIncludingStopwords);
+            $this->formatHit($hit, $document, $result, $tokensIncludingStopwords);
 
             $hits[] = $hit;
         }
@@ -1135,26 +1135,28 @@ class Searcher
 
     /**
      * @param array<mixed> $hit
+     * @param array<mixed> $document
      * @param array<mixed> $queryResult
      */
-    private function formatHit(array &$hit, array $queryResult, TokenCollection $queryTerms): void
+    private function formatHit(array &$hit, array $document, array $queryResult, TokenCollection $queryTerms): void
     {
         if (!$this->queryParameters instanceof SearchParameters) {
             return;
         }
 
         $searchableAttributes = ['*'] === $this->engine->getConfiguration()->getSearchableAttributes()
-            ? array_keys($hit)
+            ? array_keys($document)
             : $this->engine->getConfiguration()->getSearchableAttributes();
         $attributesToCrop = ['*'] === $this->queryParameters->getAttributesToCrop()
-            ? array_keys($hit)
+            ? array_keys($document)
             : array_keys($this->queryParameters->getAttributesToCrop());
         $attributesToTruncate = ['*'] === $this->queryParameters->getAttributesToTruncate()
-            ? array_keys($hit)
+            ? array_keys($document)
             : array_keys($this->queryParameters->getAttributesToTruncate());
         $attributesToHighlight = ['*'] === $this->queryParameters->getAttributesToHighlight()
-            ? array_keys($hit)
+            ? array_keys($document)
             : $this->queryParameters->getAttributesToHighlight();
+        $attributesToFormat = array_merge($attributesToCrop, $attributesToTruncate, $attributesToHighlight);
 
         $options = (new FormatterOptions())
             ->withCropLength($this->queryParameters->getCropLength())
@@ -1165,7 +1167,7 @@ class Searcher
             ->withHighlightEndTag($this->queryParameters->getHighlightEndTag())
         ;
 
-        $requiresFormatting = \count($attributesToTruncate) > 0 || \count($attributesToCrop) > 0 || \count($attributesToHighlight) > 0;
+        $requiresFormatting = \count($attributesToFormat) > 0;
         $showMatchesPosition = $this->queryParameters->showMatchesPosition();
 
         if (!$requiresFormatting && !$showMatchesPosition) {
@@ -1198,8 +1200,14 @@ class Searcher
         $matchesPosition = [];
 
         foreach ($searchableAttributes as $attribute) {
-            // Do not include any attribute not required by the result (limited by attributesToRetrieve)
-            if (!isset($hit[$attribute])) {
+            if (!isset($document[$attribute])) {
+                continue;
+            }
+
+            $isFormattable = \in_array($attribute, $attributesToFormat, true);
+
+            // Attributes must either already be in the result (attributesToRetrieve) or explicitly requested for formatting
+            if (!isset($hit[$attribute]) && !$isFormattable) {
                 continue;
             }
 
@@ -1225,10 +1233,13 @@ class Searcher
                 $attributeOptions = $attributeOptions->withEnableHighlight();
             }
 
-            if (\is_array($formatted[$attribute])) {
-                foreach ($formatted[$attribute] as $key => $value) {
+            $value = $document[$attribute];
+
+            if (\is_array($value)) {
+                $formattedValue = $value;
+                foreach ($value as $key => $arrayValue) {
                     // Do not pass along match positions as we don't have reliable information about the position of matches in arrays
-                    $formatterResult = $this->formatAttributeForHit($attribute, (string) $value, $queryTerms, $attributeOptions);
+                    $formatterResult = $this->formatAttributeForHit($attribute, (string) $arrayValue, $queryTerms, $attributeOptions);
 
                     if ($showMatchesPosition && $formatterResult->hasMatches()) {
                         $matchesPosition[$attribute] ??= [];
@@ -1236,11 +1247,15 @@ class Searcher
                     }
 
                     if ($requiresFormatting) {
-                        $formatted[$attribute][$key] = $formatterResult->getFormattedText();
+                        $formattedValue[$key] = $formatterResult->getFormattedText();
                     }
                 }
+
+                if ($requiresFormatting) {
+                    $formatted[$attribute] = $formattedValue;
+                }
             } else {
-                $formatterResult = $this->formatAttributeForHit($attribute, (string) $formatted[$attribute], $queryTerms, $attributeOptions, $matchPositionInfo);
+                $formatterResult = $this->formatAttributeForHit($attribute, (string) $value, $queryTerms, $attributeOptions, $matchPositionInfo);
 
                 if ($showMatchesPosition && $formatterResult->hasMatches()) {
                     $matchesPosition[$attribute] = $formatterResult->getMatchesArray();
