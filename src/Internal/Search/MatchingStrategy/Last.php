@@ -43,48 +43,36 @@ final class Last extends MatchingStrategy
         array $positiveConditions,
         array $negativeConditions
     ): array {
-        $droppableIndices = [];
-        foreach ($positiveConditions as $i => $condition) {
-            if ($condition['droppable']) {
-                $droppableIndices[] = $i;
-            }
-        }
-
-        $M = \count($droppableIndices);
-
-        if ($M === 0) {
-            // No droppables — behaves like `all`
-            return $positiveConditions;
-        }
-
         $threshold = $searcher->getQueryParameters()->getLimit();
 
-        $chosenK = 0;
-        for ($k = $M; $k >= 1; $k--) {
-            $keepSet = array_flip(\array_slice($droppableIndices, 0, $k));
-            $probeStatements = [];
-            foreach ($positiveConditions as $i => $condition) {
-                if (!$condition['droppable'] || isset($keepSet[$i])) {
-                    $probeStatements[] = $condition['statements'];
-                }
+        while (($lastDroppable = $this->lastDroppableIndex($positiveConditions)) !== null) {
+            $probeStatements = array_column($positiveConditions, 'statements');
+
+            if ($this->probeDocumentCount($searcher, $probeStatements, $negativeConditions) >= $threshold) {
+                return $positiveConditions;
             }
 
-            $count = $this->probeDocumentCount($searcher, $probeStatements, $negativeConditions);
-            if ($count >= $threshold) {
-                $chosenK = $k;
-                break;
+            array_splice($positiveConditions, $lastDroppable, 1);
+        }
+
+        return $positiveConditions;
+    }
+
+    /**
+     * The first positive term anchors the query and is never dropped, regardless of whether it is
+     * a phrase or a single token. Only droppables at index >= 1 are considered.
+     *
+     * @param list<array{statements: list<?string>, droppable: bool}> $positiveConditions
+     */
+    private function lastDroppableIndex(array $positiveConditions): ?int
+    {
+        for ($i = \count($positiveConditions) - 1; $i >= 1; $i--) {
+            if ($positiveConditions[$i]['droppable']) {
+                return $i;
             }
         }
 
-        $keepSet = array_flip(\array_slice($droppableIndices, 0, $chosenK));
-        $result = [];
-        foreach ($positiveConditions as $i => $condition) {
-            if (!$condition['droppable'] || isset($keepSet[$i])) {
-                $result[] = $condition;
-            }
-        }
-
-        return $result;
+        return null;
     }
 
     /**
