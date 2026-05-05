@@ -388,7 +388,7 @@ final class SearchParameters extends AbstractQueryParameters
 
         ksort($attributes);
 
-        $clone->attributesToCrop = $attributes;
+        $clone->attributesToTruncate = $attributes;
         $clone->truncationMarker = $truncationMarker;
         $clone->truncationLength = $truncationLength;
 
