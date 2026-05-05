@@ -386,7 +386,7 @@ truncated at the end, so you will get the beginning of the value up to the defin
 
 ```php
 $searchParameters = \Loupe\Loupe\SearchParameters::create()
-    ->withAttributesToTruncate(['overview', 'content']);
+    ->withAttributesToTruncate(['overview']);
 ```
 
 The result of a truncated attribute will look like this:
@@ -406,6 +406,15 @@ $results = [
         ],
     ],
 ];
+```
+
+For very long attributes, it is recommended to remove the attribute from the list of `attributesToRetrieve`
+and only return the truncated version to save bandwidth.
+
+```php
+$searchParameters = \Loupe\Loupe\SearchParameters::create()
+    ->withAttributesToRetrieve(['id', 'title'])
+    ->withAttributesToTruncate(['content']);
 ```
 
 The default truncation length is 250 characters. You can define a different truncation length by passing in an
