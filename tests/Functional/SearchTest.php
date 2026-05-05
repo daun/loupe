@@ -1975,6 +1975,266 @@ class SearchTest extends TestCase
         ]);
     }
 
+    public function testMatchingStrategyLastAllPhrasesActsLikeAll(): void
+    {
+        $configuration = Configuration::create()
+            ->withSortableAttributes(['title'])
+            ->withSearchableAttributes(['title', 'overview'])
+            ->withTypoTolerance(TypoTolerance::create()->disable());
+
+        $loupe = $this->createLoupe($configuration);
+        $this->indexFixture($loupe, 'movies');
+
+        // Both first term and phrases cannot be dropped => behaves like `all`
+        $searchParameters = SearchParameters::create()
+            ->withQuery('and "the son"')
+            ->withMatchingStrategy('last')
+            ->withAttributesToRetrieve(['id', 'title'])
+            ->withSort(['title:asc']);
+
+        $this->searchAndAssertResults($loupe, $searchParameters, [
+            'hits' => [
+                [
+                    'id' => 19,
+                    'title' => 'Metropolis',
+                ],
+            ],
+            'query' => 'and "the son"',
+            'hitsPerPage' => 20,
+            'page' => 1,
+            'totalPages' => 1,
+            'totalHits' => 1,
+        ]);
+    }
+
+    public function testMatchingStrategyLastDropsUntilEnoughResults(): void
+    {
+        $configuration = Configuration::create()
+            ->withSortableAttributes(['title'])
+            ->withSearchableAttributes(['title', 'overview', 'genres'])
+            ->withTypoTolerance(TypoTolerance::create()->disable());
+
+        $loupe = $this->createLoupe($configuration);
+        $this->indexFixture($loupe, 'movies');
+
+        // With `all`, this would match 0 documents
+        // "young london glaciologist music" is the first combination that matches a movie
+        $searchParameters = SearchParameters::create()
+            ->withQuery('young london glaciologist music life things')
+            ->withMatchingStrategy('last')
+            ->withLimit(1)
+            ->withAttributesToRetrieve(['id', 'title']);
+
+        $this->searchAndAssertResults($loupe, $searchParameters, [
+            'hits' => [
+                [
+                    'id' => 27,
+                    'title' => '9 Songs',
+                ],
+            ],
+            'query' => 'young london glaciologist music life things',
+            'hitsPerPage' => 1,
+            'page' => 1,
+            'totalPages' => 1,
+            'totalHits' => 1,
+        ]);
+
+        // Increasing the limit should drop another term to satisfy the new threshold
+        $searchParametersExpanded = $searchParameters->withLimit(3);
+
+        $this->searchAndAssertResults($loupe, $searchParametersExpanded, [
+            'hits' => [
+                [
+                    'id' => 27,
+                    'title' => '9 Songs',
+                ],
+                [
+                    'id' => 12,
+                    'title' => 'Finding Nemo',
+                ],
+                [
+                    'id' => 18,
+                    'title' => 'The Fifth Element',
+                ],
+            ],
+            'query' => 'young london glaciologist music life things',
+            'hitsPerPage' => 3,
+            'page' => 1,
+            'totalPages' => 1,
+            'totalHits' => 3,
+        ]);
+    }
+
+    public function testMatchingStrategyLastEmptyResultWhenEvenAnchorsDoNotMatch(): void
+    {
+        $configuration = Configuration::create()
+            ->withSortableAttributes(['title'])
+            ->withSearchableAttributes(['title', 'overview'])
+            ->withTypoTolerance(TypoTolerance::create()->disable());
+
+        $loupe = $this->createLoupe($configuration);
+        $this->indexFixture($loupe, 'movies');
+
+        // Phrase anchor cannot match any document
+        $searchParameters = SearchParameters::create()
+            ->withQuery('"neveroccurring phrase" music drama')
+            ->withMatchingStrategy('last')
+            ->withAttributesToRetrieve(['id', 'title']);
+
+        $this->searchAndAssertResults($loupe, $searchParameters, [
+            'hits' => [],
+            'query' => '"neveroccurring phrase" music drama',
+            'hitsPerPage' => 20,
+            'page' => 1,
+            'totalPages' => 0,
+            'totalHits' => 0,
+        ]);
+    }
+
+    public function testMatchingStrategyLastNeverDropsPhrases(): void
+    {
+        $configuration = Configuration::create()
+            ->withSortableAttributes(['title'])
+            ->withSearchableAttributes(['title', 'overview'])
+            ->withTypoTolerance(TypoTolerance::create()->disable());
+
+        $loupe = $this->createLoupe($configuration);
+        $this->indexFixture($loupe, 'movies');
+
+        // Only Metropolis contains the phrase "the son". "nonexistentword" would zero out any drop
+        // level that still requires it, so the only way to get a hit is to drop the trailing
+        // single token while keeping the phrase anchor.
+        $searchParameters = SearchParameters::create()
+            ->withQuery('"the son" nonexistentword')
+            ->withMatchingStrategy('last')
+            ->withLimit(1)
+            ->withAttributesToRetrieve(['id', 'title'])
+            ->withSort(['title:asc']);
+
+        $this->searchAndAssertResults($loupe, $searchParameters, [
+            'hits' => [
+                [
+                    'id' => 19,
+                    'title' => 'Metropolis',
+                ],
+            ],
+            'query' => '"the son" nonexistentword',
+            'hitsPerPage' => 1,
+            'page' => 1,
+            'totalPages' => 1,
+            'totalHits' => 1,
+        ]);
+    }
+
+    public function testMatchingStrategyLastNeverDropsTheFirstTerm(): void
+    {
+        $configuration = Configuration::create()
+            ->withSortableAttributes(['title'])
+            ->withSearchableAttributes(['title', 'overview'])
+            ->withTypoTolerance(TypoTolerance::create()->disable());
+
+        $loupe = $this->createLoupe($configuration);
+        $this->indexFixture($loupe, 'movies');
+
+        // The first single token "nonexistentword" anchors the query. Dropping the trailing token
+        // ("music") would just leave "nonexistentword" on its own, which matches nothing — so the
+        // strategy must not drop the first term to manufacture hits via "music" alone.
+        $searchParameters = SearchParameters::create()
+            ->withQuery('nonexistentword music')
+            ->withMatchingStrategy('last')
+            ->withLimit(1)
+            ->withAttributesToRetrieve(['id', 'title']);
+
+        $this->searchAndAssertResults($loupe, $searchParameters, [
+            'hits' => [],
+            'query' => 'nonexistentword music',
+            'hitsPerPage' => 1,
+            'page' => 1,
+            'totalPages' => 0,
+            'totalHits' => 0,
+        ]);
+    }
+
+    public function testMatchingStrategyLastNoFallbackWhenFullQueryYieldsEnough(): void
+    {
+        $configuration = Configuration::create()
+            ->withSortableAttributes(['title'])
+            ->withSearchableAttributes(['title', 'overview', 'genres'])
+            ->withTypoTolerance(TypoTolerance::create()->disable());
+
+        $loupe = $this->createLoupe($configuration);
+        $this->indexFixture($loupe, 'movies');
+
+        // With `all` this already yields 1 match (9 Songs); `last` with limit=1 should not drop anything.
+        $searchParameters = SearchParameters::create()
+            ->withQuery('young london glaciologist music')
+            ->withMatchingStrategy('last')
+            ->withLimit(1)
+            ->withAttributesToRetrieve(['id', 'title']);
+
+        $this->searchAndAssertResults($loupe, $searchParameters, [
+            'hits' => [
+                [
+                    'id' => 27,
+                    'title' => '9 Songs',
+                ],
+            ],
+            'query' => 'young london glaciologist music',
+            'hitsPerPage' => 1,
+            'page' => 1,
+            'totalPages' => 1,
+            'totalHits' => 1,
+        ]);
+    }
+
+    public function testMatchingStrategyLastThresholdRespectsLimit(): void
+    {
+        $configuration = Configuration::create()
+            ->withSearchableAttributes(['content'])
+            ->withTypoTolerance(TypoTolerance::create()->disable());
+
+        $loupe = $this->createLoupe($configuration);
+
+        // 3 documents match all three terms, 5 more match only "alpha beta", 10 more match only "alpha".
+        $documents = [];
+        $id = 1;
+        for ($i = 0; $i < 3; $i++, $id++) {
+            $documents[] = [
+                'id' => $id,
+                'content' => 'alpha beta gamma',
+            ];
+        }
+        for ($i = 0; $i < 5; $i++, $id++) {
+            $documents[] = [
+                'id' => $id,
+                'content' => 'alpha beta',
+            ];
+        }
+        for ($i = 0; $i < 10; $i++, $id++) {
+            $documents[] = [
+                'id' => $id,
+                'content' => 'alpha',
+            ];
+        }
+        $loupe->addDocuments($documents);
+
+        // limit=3 → 3 matches at full query is enough, no drop.
+        $params = SearchParameters::create()
+            ->withQuery('alpha beta gamma')
+            ->withMatchingStrategy('last')
+            ->withLimit(3)
+            ->withAttributesToRetrieve(['id']);
+        $this->assertSame(3, $loupe->search($params)->toArray()['totalHits']);
+
+        // limit=5 → needs to drop "gamma" to include the 5 "alpha beta" docs → totalHits = 3 + 5 = 8.
+        $params = $params->withLimit(5);
+        $this->assertSame(8, $loupe->search($params)->toArray()['totalHits']);
+
+        // limit=10 → needs to drop to just "alpha" → totalHits = 18.
+        $params = $params->withLimit(10);
+        $this->assertSame(18, $loupe->search($params)->toArray()['totalHits']);
+    }
+
     public function testMaxHits(): void
     {
         $configuration = Configuration::create()
