@@ -379,9 +379,60 @@ $results = [
 ];
 ```
 
+## Attribute truncation
+
+Loupe can truncate selected attributes to a certain length to avoid returning excessively long values. Attributes are
+truncated at the end, so you will get the beginning of the value up to the defined truncation length.
+
+```php
+$searchParameters = \Loupe\Loupe\SearchParameters::create()
+    ->withAttributesToTruncate(['overview', 'content']);
+```
+
+The result of a truncated attribute will look like this:
+
+```php
+$results = [
+    'hits' => [
+        [
+            'id' => 24,
+            'title' => 'Kill Bill: Vol. 1',
+            'overview' => 'An assassin is shot by her ruthless employer, Bill, and other members of their assassination circle – but she lives to plot her vengeance.',
+            '_formatted' => [
+                'id' => 24,
+                'title' => 'Kill Bill: Vol. 1',
+                'overview' => 'An assassin is shot by her ruthless employer…',
+            ],
+        ],
+    ],
+];
+```
+
+The default truncation length is 250 characters. You can define a different truncation length by passing in an
+integer value.
+
+```php
+$searchParameters = \Loupe\Loupe\SearchParameters::create()
+    ->withAttributesToTruncate(['overview', 'content'], cropLength: 500);
+```
+
+Optionally, define a custom truncation length for each attribute by passing in an array of lengths keyed by attribute name.
+
+```php
+$searchParameters = \Loupe\Loupe\SearchParameters::create()
+    ->withAttributesToTruncate(['overview', => 100, 'content' => 300]);
+```
+
+The truncation edge is marked with an ellipsis `…` character by default. You can change this by passing in a custom marker.
+
+```php
+$searchParameters = \Loupe\Loupe\SearchParameters::create()
+    ->withAttributesToTruncate(['overview', 'content'], truncationMarker: '∞');
+```
+
 ## Context cropping
 
-Loupe can crop selected attributes to a certain length around the search terms. The is useful to
+Loupe can crop selected attributes around the search terms. This special form of truncation is useful to
 show as much context as possible around matched words when displaying results.
 
 ```php
