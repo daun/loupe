@@ -182,6 +182,42 @@ class FormattingTest extends TestCase
         $this->searchAndAssertResults($loupe, $searchParameters, $expectedResults);
     }
 
+    /**
+     * @param array<string> $searchableAttributes
+     * @param array<string>|array<string,int> $attributesToTruncate
+     * @param array<string> $attributesToHighlight
+     * @param array<mixed> $expectedResults
+     */
+    #[DataProvider('truncationProvider')]
+    public function testTruncation(
+        string $query,
+        array $searchableAttributes,
+        array $attributesToTruncate,
+        array $attributesToHighlight,
+        array $expectedResults,
+        int $truncationLength = 250,
+        string $truncationMarker = '…',
+    ): void {
+        $configuration = Configuration::create()
+            ->withSearchableAttributes($searchableAttributes)
+            ->withFilterableAttributes(['genres'])
+            ->withSortableAttributes(['title'])
+        ;
+
+        $loupe = $this->createLoupe($configuration);
+        $this->indexFixture($loupe, 'movies');
+
+        $searchParameters = SearchParameters::create()
+            ->withQuery($query)
+            ->withAttributesToTruncate($attributesToTruncate, $truncationLength, $truncationMarker)
+            ->withAttributesToHighlight($attributesToHighlight)
+            ->withAttributesToRetrieve(['id', 'title', 'overview', 'genres'])
+            ->withSort(['title:asc'])
+        ;
+
+        $this->searchAndAssertResults($loupe, $searchParameters, $expectedResults);
+    }
+
     public static function truncationProvider(): \Generator
     {
         yield 'Truncation shortens long values at word boundary with default marker' => [
@@ -273,41 +309,5 @@ class FormattingTest extends TestCase
             50,
             ' [...]',
         ];
-    }
-
-    /**
-     * @param array<string> $searchableAttributes
-     * @param array<string>|array<string,int> $attributesToTruncate
-     * @param array<string> $attributesToHighlight
-     * @param array<mixed> $expectedResults
-     */
-    #[DataProvider('truncationProvider')]
-    public function testTruncation(
-        string $query,
-        array $searchableAttributes,
-        array $attributesToTruncate,
-        array $attributesToHighlight,
-        array $expectedResults,
-        int $truncationLength = 250,
-        string $truncationMarker = '…',
-    ): void {
-        $configuration = Configuration::create()
-            ->withSearchableAttributes($searchableAttributes)
-            ->withFilterableAttributes(['genres'])
-            ->withSortableAttributes(['title'])
-        ;
-
-        $loupe = $this->createLoupe($configuration);
-        $this->indexFixture($loupe, 'movies');
-
-        $searchParameters = SearchParameters::create()
-            ->withQuery($query)
-            ->withAttributesToTruncate($attributesToTruncate, $truncationLength, $truncationMarker)
-            ->withAttributesToHighlight($attributesToHighlight)
-            ->withAttributesToRetrieve(['id', 'title', 'overview', 'genres'])
-            ->withSort(['title:asc'])
-        ;
-
-        $this->searchAndAssertResults($loupe, $searchParameters, $expectedResults);
     }
 }
