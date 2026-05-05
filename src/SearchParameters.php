@@ -20,6 +20,11 @@ final class SearchParameters extends AbstractQueryParameters
      */
     private array $attributesToHighlight = [];
 
+    /**
+     * @var array<string>
+     */
+    private array $attributesToTruncate = [];
+
     private int $cropLength = 50;
 
     private string $cropMarker = '…';
@@ -48,6 +53,10 @@ final class SearchParameters extends AbstractQueryParameters
      */
     private array $sort = [Internal\Search\Searcher::RELEVANCE_ALIAS . ':desc'];
 
+    private int $truncationLength = 250;
+
+    private string $truncationMarker = '…';
+
     public static function create(): static
     {
         return new self();
@@ -56,6 +65,7 @@ final class SearchParameters extends AbstractQueryParameters
     /**
      * @param array{
      *     attributesToCrop?: array<string>|array<string,int>,
+     *     attributesToTruncate?: array<string>|array<string,int>,
      *     attributesToHighlight?: array<string>,
      *     attributesToRetrieve?: array<string>,
      *     attributesToSearchOn?: array<string>,
@@ -85,6 +95,14 @@ final class SearchParameters extends AbstractQueryParameters
                 $data['attributesToCrop'],
                 $data['cropLength'] ?? 50,
                 $data['cropMarker'] ?? '…',
+            );
+        }
+
+        if (isset($data['attributesToTruncate'])) {
+            $instance = $instance->withAttributesToTruncate(
+                $data['attributesToTruncate'],
+                $data['truncationLength'] ?? 250,
+                $data['truncationMarker'] ?? '…',
             );
         }
 
@@ -143,6 +161,14 @@ final class SearchParameters extends AbstractQueryParameters
         return $this->attributesToHighlight;
     }
 
+    /**
+     * @return array<string,int>
+     */
+    public function getAttributesToTruncate(): array
+    {
+        return $this->attributesToTruncate;
+    }
+
     public function getCropLength(): int
     {
         return $this->cropLength;
@@ -175,8 +201,11 @@ final class SearchParameters extends AbstractQueryParameters
 
         $hash[] = json_encode($this->getAttributesToCrop());
         $hash[] = json_encode($this->getAttributesToHighlight());
+        $hash[] = json_encode($this->getAttributesToTruncate());
         $hash[] = json_encode($this->getCropLength());
         $hash[] = json_encode($this->getCropMarker());
+        $hash[] = json_encode($this->getTruncationLength());
+        $hash[] = json_encode($this->getTruncationMarker());
         $hash[] = json_encode($this->getHighlightEndTag());
         $hash[] = json_encode($this->getHighlightStartTag());
         $hash[] = json_encode($this->getAttributesToRetrieve());
@@ -222,6 +251,16 @@ final class SearchParameters extends AbstractQueryParameters
         return $this->sort;
     }
 
+    public function getTruncationLength(): int
+    {
+        return $this->truncationLength;
+    }
+
+    public function getTruncationMarker(): string
+    {
+        return $this->truncationMarker;
+    }
+
     public function showMatchesPosition(): bool
     {
         return $this->showMatchesPosition;
@@ -236,9 +275,12 @@ final class SearchParameters extends AbstractQueryParameters
      * @return array{
      *     attributesToCrop: array<string,int>,
      *     attributesToHighlight: array<string>,
+     *     attributesToTruncate: array<string,int>,
      *     facets: array<string>,
      *     cropLength: int,
      *     cropMarker: string,
+     *     truncationLength: int,
+     *     truncationMarker: string,
      *     filter: string,
      *     highlightEndTag: string,
      *     highlightStartTag: string,
@@ -261,10 +303,13 @@ final class SearchParameters extends AbstractQueryParameters
     {
         return array_merge(parent::toArray(), [
             'attributesToCrop' => $this->attributesToCrop,
+            'attributesToTruncate' => $this->attributesToTruncate,
             'attributesToHighlight' => $this->attributesToHighlight,
             'facets' => $this->facets,
             'cropLength' => $this->cropLength,
             'cropMarker' => $this->cropMarker,
+            'truncationLength' => $this->truncationLength,
+            'truncationMarker' => $this->truncationMarker,
             'highlightEndTag' => $this->highlightEndTag,
             'highlightStartTag' => $this->highlightStartTag,
             'matchingStrategy' => $this->getMatchingStrategy(),
@@ -318,6 +363,34 @@ final class SearchParameters extends AbstractQueryParameters
         $clone->attributesToHighlight = $attributesToHighlight;
         $clone->highlightStartTag = $highlightStartTag;
         $clone->highlightEndTag = $highlightEndTag;
+
+        return $clone;
+    }
+
+    /**
+     * @param array<string>|array<string,int> $ttributesToTruncate
+     */
+    public function withAttributesToTruncate(
+        array $ttributesToTruncate,
+        int $truncationLength = 250,
+        string $truncationMarker = '…',
+    ): self {
+        $clone = clone $this;
+
+        $attributes = [];
+        foreach ($ttributesToTruncate as $key => $attribute) {
+            if (\is_string($key) && \is_int($attribute)) {
+                $attributes[$key] = $attribute;
+            } elseif (\is_string($attribute)) {
+                $attributes[$attribute] = $truncationLength;
+            }
+        }
+
+        ksort($attributes);
+
+        $clone->attributesToCrop = $attributes;
+        $clone->truncationMarker = $truncationMarker;
+        $clone->truncationLength = $truncationLength;
 
         return $clone;
     }
