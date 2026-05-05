@@ -368,17 +368,17 @@ final class SearchParameters extends AbstractQueryParameters
     }
 
     /**
-     * @param array<string>|array<string,int> $ttributesToTruncate
+     * @param array<string>|array<string,int> $attributesToTruncate
      */
     public function withAttributesToTruncate(
-        array $ttributesToTruncate,
+        array $attributesToTruncate,
         int $truncationLength = 250,
         string $truncationMarker = '…',
     ): self {
         $clone = clone $this;
 
         $attributes = [];
-        foreach ($ttributesToTruncate as $key => $attribute) {
+        foreach ($attributesToTruncate as $key => $attribute) {
             if (\is_string($key) && \is_int($attribute)) {
                 $attributes[$key] = $attribute;
             } elseif (\is_string($attribute)) {
