@@ -6,7 +6,7 @@ namespace Loupe\Loupe;
 
 use Loupe\Loupe\Exception\InvalidSearchParametersException;
 use Loupe\Loupe\Internal\Search\AbstractQueryParameters;
-use Loupe\Loupe\Internal\Search\MatchingStrategy;
+use Loupe\Loupe\Internal\Search\MatchingStrategy\MatchingStrategy;
 
 final class SearchParameters extends AbstractQueryParameters
 {
@@ -35,7 +35,7 @@ final class SearchParameters extends AbstractQueryParameters
 
     private string $highlightStartTag = '<em>';
 
-    private MatchingStrategy $matchingStrategy = MatchingStrategy::Any;
+    private string $matchingStrategy = 'any';
 
     private float $rankingScoreThreshold = 0.0;
 
@@ -206,7 +206,7 @@ final class SearchParameters extends AbstractQueryParameters
 
     public function getMatchingStrategy(): string
     {
-        return $this->matchingStrategy->value;
+        return $this->matchingStrategy;
     }
 
     public function getRankingScoreThreshold(): float
@@ -342,17 +342,15 @@ final class SearchParameters extends AbstractQueryParameters
 
     public function withMatchingStrategy(string $matchingStrategy): self
     {
-        $strategy = MatchingStrategy::tryFrom($matchingStrategy);
-
-        if ($strategy === null) {
+        if (!\in_array($matchingStrategy, MatchingStrategy::names(), true)) {
             throw InvalidSearchParametersException::invalidMatchingStrategy(
                 $matchingStrategy,
-                array_column(MatchingStrategy::cases(), 'value'),
+                MatchingStrategy::names(),
             );
         }
 
         $clone = clone $this;
-        $clone->matchingStrategy = $strategy;
+        $clone->matchingStrategy = $matchingStrategy;
 
         return $clone;
     }

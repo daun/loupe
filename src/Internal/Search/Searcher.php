@@ -18,11 +18,14 @@ use Loupe\Loupe\Internal\Filter\Parser;
 use Loupe\Loupe\Internal\Index\IndexInfo;
 use Loupe\Loupe\Internal\LoupeTypes;
 use Loupe\Loupe\Internal\Search\FilterBuilder\FilterBuilder;
+use Loupe\Loupe\Internal\Search\MatchingStrategy\Any as MatchingStrategyAny;
+use Loupe\Loupe\Internal\Search\MatchingStrategy\MatchingStrategy;
 use Loupe\Loupe\Internal\Util;
 use Loupe\Loupe\SearchParameters;
 use Loupe\Loupe\SearchResult;
 use Loupe\Matcher\FormatterOptions;
 use Loupe\Matcher\FormatterResult;
+use Loupe\Matcher\Tokenizer\Phrase;
 use Loupe\Matcher\Tokenizer\Token;
 use Loupe\Matcher\Tokenizer\TokenCollection;
 
@@ -314,6 +317,11 @@ class Searcher
     public function getCtesByTag(string $tag): array
     {
         return $this->ctesByTag[$tag] ?? [];
+    }
+
+    public function getEngine(): Engine
+    {
+        return $this->engine;
     }
 
     public function getQueryBuilder(): QueryBuilder
@@ -772,6 +780,21 @@ class Searcher
             ->groupBy($documentsAlias . '.' . $distinct);
     }
 
+    /**
+     * @param list<array{statements: list<?string>, droppable: bool}> $positiveConditions
+     * @param list<list<?string>>                                     $negativeConditions
+     */
+    private function applyMatchingStrategy(QueryBuilder $qb, array $positiveConditions, array $negativeConditions): void
+    {
+        $strategy = $this->queryParameters instanceof SearchParameters
+            ? MatchingStrategy::fromName($this->queryParameters->getMatchingStrategy())
+            : null;
+
+        $strategy ??= new MatchingStrategyAny();
+
+        $strategy->apply($this, $qb, $positiveConditions, $negativeConditions);
+    }
+
     private function askedForFormattingOrMatchesPosition(): bool
     {
         if (!$this->queryParameters instanceof SearchParameters) {
@@ -816,37 +839,15 @@ class Searcher
                 if ($tokenOrPhrase->isNegated()) {
                     $negativeConditions[] = $statements;
                 } else {
-                    $positiveConditions[] = $statements;
+                    $positiveConditions[] = [
+                        'statements' => $statements,
+                        'droppable' => !($tokenOrPhrase instanceof Phrase),
+                    ];
                 }
             }
         }
 
-        $strategy = $this->queryParameters instanceof SearchParameters
-            ? MatchingStrategy::from($this->queryParameters->getMatchingStrategy())
-            : MatchingStrategy::Any;
-
-        $positiveOperator = match ($strategy) {
-            MatchingStrategy::All => ' AND ',
-            MatchingStrategy::Any => ' OR ',
-        };
-
-        $where = implode($positiveOperator, array_map(
-            fn ($statements) => '(' . implode(' AND ', $statements) . ')',
-            $positiveConditions
-        ));
-
-        if ($where !== '') {
-            $qb->andWhere('(' . $where . ')');
-        }
-
-        $whereNot = implode(' AND ', array_map(
-            fn ($statements) => '(' . implode(' AND ', $statements) . ')',
-            $negativeConditions
-        ));
-
-        if ($whereNot !== '') {
-            $qb->andWhere('(' . $whereNot . ')');
-        }
+        $this->applyMatchingStrategy($qb, $positiveConditions, $negativeConditions);
 
         return $qb->getSQL();
     }
