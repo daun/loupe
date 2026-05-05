@@ -1145,6 +1145,9 @@ class Searcher
         $attributesToCrop = ['*'] === $this->queryParameters->getAttributesToCrop()
             ? array_keys($hit)
             : array_keys($this->queryParameters->getAttributesToCrop());
+        $attributesToTruncate = ['*'] === $this->queryParameters->getAttributesToTruncate()
+            ? array_keys($hit)
+            : array_keys($this->queryParameters->getAttributesToTruncate());
         $attributesToHighlight = ['*'] === $this->queryParameters->getAttributesToHighlight()
             ? array_keys($hit)
             : $this->queryParameters->getAttributesToHighlight();
@@ -1152,11 +1155,13 @@ class Searcher
         $options = (new FormatterOptions())
             ->withCropLength($this->queryParameters->getCropLength())
             ->withCropMarker($this->queryParameters->getCropMarker())
+            ->withTruncationLength($this->queryParameters->getTruncationLength())
+            ->withTruncationMarker($this->queryParameters->getTruncationMarker())
             ->withHighlightStartTag($this->queryParameters->getHighlightStartTag())
             ->withHighlightEndTag($this->queryParameters->getHighlightEndTag())
         ;
 
-        $requiresFormatting = \count($attributesToCrop) > 0 || \count($attributesToHighlight) > 0;
+        $requiresFormatting = \count($attributesToTruncate) > 0 || \count($attributesToCrop) > 0 || \count($attributesToHighlight) > 0;
         $showMatchesPosition = $this->queryParameters->showMatchesPosition();
 
         if (!$requiresFormatting && !$showMatchesPosition) {
@@ -1201,6 +1206,14 @@ class Searcher
 
                 if (isset($this->queryParameters->getAttributesToCrop()[$attribute])) {
                     $attributeOptions = $attributeOptions->withCropLength($this->queryParameters->getAttributesToCrop()[$attribute]);
+                }
+            }
+
+            if (\in_array($attribute, $attributesToTruncate, true)) {
+                $attributeOptions = $attributeOptions->withEnableTruncation();
+
+                if (isset($this->queryParameters->getAttributesToTruncate()[$attribute])) {
+                    $attributeOptions = $attributeOptions->withTruncationLength($this->queryParameters->getAttributesToTruncate()[$attribute]);
                 }
             }
 
