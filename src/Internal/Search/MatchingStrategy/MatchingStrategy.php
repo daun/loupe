@@ -80,6 +80,7 @@ abstract class MatchingStrategy
         return [
             All::getName() => All::class,
             Any::getName() => Any::class,
+            Last::getName() => Last::class,
         ];
     }
 }
