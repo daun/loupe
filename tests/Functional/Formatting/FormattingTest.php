@@ -184,6 +184,7 @@ class FormattingTest extends TestCase
 
     /**
      * @param array<string> $searchableAttributes
+     * @param array<string> $attributesToRetrieve
      * @param array<string>|array<string,int> $attributesToTruncate
      * @param array<string> $attributesToHighlight
      * @param array<mixed> $expectedResults
@@ -192,6 +193,7 @@ class FormattingTest extends TestCase
     public function testTruncation(
         string $query,
         array $searchableAttributes,
+        array $attributesToRetrieve,
         array $attributesToTruncate,
         array $attributesToHighlight,
         array $expectedResults,
@@ -211,7 +213,7 @@ class FormattingTest extends TestCase
             ->withQuery($query)
             ->withAttributesToTruncate($attributesToTruncate, $truncationLength, $truncationMarker)
             ->withAttributesToHighlight($attributesToHighlight)
-            ->withAttributesToRetrieve(['id', 'title', 'overview', 'genres'])
+            ->withAttributesToRetrieve($attributesToRetrieve)
             ->withSort(['title:asc'])
         ;
 
@@ -223,6 +225,7 @@ class FormattingTest extends TestCase
         yield 'Truncation shortens long values at word boundary with default marker' => [
             'assassin',
             ['title', 'overview'],
+            ['id', 'title', 'overview', 'genres'],
             ['overview'],
             ['overview'],
             [
@@ -252,6 +255,7 @@ class FormattingTest extends TestCase
         yield 'Truncation per attribute applies attribute-specific lengths' => [
             'Bill',
             ['title', 'overview'],
+            ['id', 'title', 'overview', 'genres'],
             [
                 'title' => 5,
                 'overview' => 30,
@@ -280,9 +284,37 @@ class FormattingTest extends TestCase
             ],
         ];
 
+        yield 'Truncation returns truncated value in _formatted even when attribute is excluded from attributesToRetrieve' => [
+            'assassin',
+            ['title', 'overview'],
+            ['id', 'title'],
+            ['overview'],
+            ['overview'],
+            [
+                'hits' => [
+                    [
+                        'id' => 24,
+                        'title' => 'Kill Bill: Vol. 1',
+                        '_formatted' => [
+                            'id' => 24,
+                            'title' => 'Kill Bill: Vol. 1',
+                            'overview' => 'An <em>assassin</em> is shot by her ruthless employer,…',
+                        ],
+                    ],
+                ],
+                'query' => 'assassin',
+                'hitsPerPage' => 20,
+                'page' => 1,
+                'totalPages' => 1,
+                'totalHits' => 1,
+            ],
+            50,
+        ];
+
         yield 'Truncation with custom marker' => [
             'assassin',
             ['title', 'overview'],
+            ['id', 'title', 'overview', 'genres'],
             ['overview'],
             ['overview'],
             [

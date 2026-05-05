@@ -19,6 +19,7 @@ class CroppingTest extends TestCase
         yield 'Cropping with too little text and no change' => [
             'assassin employer member vengeance',
             ['title', 'overview'],
+            ['id', 'title', 'overview', 'genres'],
             ['overview'],
             [],
             [
@@ -47,6 +48,7 @@ class CroppingTest extends TestCase
         yield 'Cropping with multiple matches' => [
             'assassin',
             ['title', 'overview'],
+            ['id', 'title', 'overview', 'genres'],
             ['overview'],
             [],
             [
@@ -75,6 +77,7 @@ class CroppingTest extends TestCase
         yield 'Cropping at the beginning' => [
             'selma',
             ['title', 'overview'],
+            ['id', 'title', 'overview', 'genres'],
             ['overview'],
             [],
             [
@@ -103,6 +106,7 @@ class CroppingTest extends TestCase
         yield 'Cropping at the end' => [
             'surroundings',
             ['title', 'overview'],
+            ['id', 'title', 'overview', 'genres'],
             ['overview'],
             [],
             [
@@ -131,6 +135,7 @@ class CroppingTest extends TestCase
         yield 'Cropping with custom crop length' => [
             'assassin',
             ['title', 'overview'],
+            ['id', 'title', 'overview', 'genres'],
             ['overview'],
             [],
             [
@@ -161,9 +166,41 @@ class CroppingTest extends TestCase
             25,
         ];
 
+        yield 'Cropping returns cropped value in _formatted even when attribute is excluded from attributesToRetrieve' => [
+            'assassin',
+            ['title', 'overview'],
+            ['id', 'title'],
+            ['overview'],
+            ['overview'],
+            [
+                'hits' => [
+                    [
+                        'id' => 24,
+                        'title' => 'Kill Bill: Vol. 1',
+                        '_formatted' => [
+                            'id' => 24,
+                            'title' => 'Kill Bill: Vol. 1',
+                            'overview' => 'An <em>assassin</em> is shot…their <em>assassination</em> circle…',
+                        ],
+                    ],
+                ],
+                'query' => 'assassin',
+                'hitsPerPage' => 20,
+                'page' => 1,
+                'totalPages' => 1,
+                'totalHits' => 1,
+            ],
+            [],
+            '<em>',
+            '</em>',
+            '…',
+            20,
+        ];
+
         yield 'Cropping with highlights' => [
             'assassin',
             ['title', 'overview'],
+            ['id', 'title', 'overview', 'genres'],
             [
                 'overview' => 20,
             ],
@@ -194,6 +231,7 @@ class CroppingTest extends TestCase
 
     /**
      * @param array<string> $searchableAttributes
+     * @param array<string> $attributesToRetrieve
      * @param array<string>|array<string,int> $attributesToCrop
      * @param array<string> $attributesToHighlight
      * @param array<mixed> $expectedResults
@@ -203,6 +241,7 @@ class CroppingTest extends TestCase
     public function testCropping(
         string $query,
         array $searchableAttributes,
+        array $attributesToRetrieve,
         array $attributesToCrop,
         array $attributesToHighlight,
         array $expectedResults,
@@ -226,7 +265,7 @@ class CroppingTest extends TestCase
             ->withQuery($query)
             ->withAttributesToHighlight($attributesToHighlight, $highlightStartTag, $highlightEndTag)
             ->withAttributesToCrop($attributesToCrop, $cropLength, $cropMarker)
-            ->withAttributesToRetrieve(['id', 'title', 'overview', 'genres'])
+            ->withAttributesToRetrieve($attributesToRetrieve)
             ->withSort(['title:asc'])
         ;
 
