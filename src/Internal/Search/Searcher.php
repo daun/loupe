@@ -785,6 +785,10 @@ class Searcher
             return true;
         }
 
+        if ($this->queryParameters->getAttributesToTruncate() !== []) {
+            return true;
+        }
+
         return $this->queryParameters->showMatchesPosition();
     }
 
