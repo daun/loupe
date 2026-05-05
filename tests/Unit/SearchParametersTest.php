@@ -64,6 +64,8 @@ class SearchParametersTest extends TestCase
             ->withFilter("status = 'active'")
             ->withAttributesToRetrieve(['title', 'author'])
             ->withAttributesToHighlight(['title'], '<strong>', '</strong>')
+            ->withAttributesToCrop(['title'], 5, ' / ')
+            ->withAttributesToTruncate(['title'], 25, ' + ')
             ->withAttributesToSearchOn(['title'])
             ->withShowMatchesPosition(true)
             ->withShowRankingScore(true)
