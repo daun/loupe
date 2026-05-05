@@ -21,7 +21,7 @@ final class SearchParameters extends AbstractQueryParameters
     private array $attributesToHighlight = [];
 
     /**
-     * @var array<string>
+     * @var array<string,int>
      */
     private array $attributesToTruncate = [];
 
