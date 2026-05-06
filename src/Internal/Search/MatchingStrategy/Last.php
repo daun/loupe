@@ -48,7 +48,7 @@ final class Last extends MatchingStrategy
         while (($lastDroppable = $this->lastDroppableIndex($positiveConditions)) !== null) {
             $probeStatements = array_column($positiveConditions, 'statements');
 
-            if ($this->probeDocumentCount($searcher, $probeStatements, $negativeConditions) >= $threshold) {
+            if ($this->probeDocumentCount($searcher, $probeStatements, $negativeConditions, $threshold) >= $threshold) {
                 return $positiveConditions;
             }
 
@@ -78,18 +78,20 @@ final class Last extends MatchingStrategy
     /**
      * Check potential number of results from existing term-document CTEs with the given positive/negative
      * condition groups combined with AND, in order to decide how many trailing query terms to drop.
+     * Bounded by $threshold — the count short-circuits once enough rows are found.
      *
      * @param list<list<?string>> $positiveConditions
      * @param list<list<?string>> $negativeConditions
      */
-    private function probeDocumentCount(Searcher $searcher, array $positiveConditions, array $negativeConditions): int
+    private function probeDocumentCount(Searcher $searcher, array $positiveConditions, array $negativeConditions, int $threshold): int
     {
         $engine = $searcher->getEngine();
         $documentsAlias = $engine->getIndexInfo()->getAliasForTable(IndexInfo::TABLE_NAME_DOCUMENTS);
 
         $innerQb = $engine->getConnection()->createQueryBuilder()
-            ->select($documentsAlias . '._id AS document_id')
-            ->from(IndexInfo::TABLE_NAME_DOCUMENTS, $documentsAlias);
+            ->select('1')
+            ->from(IndexInfo::TABLE_NAME_DOCUMENTS, $documentsAlias)
+            ->setMaxResults($threshold);
 
         $positiveParts = array_map(
             fn ($statements) => '(' . implode(' AND ', $statements) . ')',
