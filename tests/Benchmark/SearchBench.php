@@ -10,7 +10,7 @@ use Loupe\Loupe\SearchParameters;
 /**
  * @BeforeClassMethods({"setUpClass"})
  * @BeforeMethods({"setUp"})
- * @Revs(10)
+ * @Revs(3)
  * @Iterations(5)
  * @Warmup(2)
  * @OutputTimeUnit("milliseconds", precision=2)
@@ -23,6 +23,28 @@ class SearchBench extends AbstractBench
     public function setUp(): void
     {
         $this->loupe = self::loupe(self::searchIndexPath());
+    }
+
+    /**
+     * @Revs(1)
+     */
+    public function benchMultiWordQueries(): void
+    {
+        $queries = [
+            'dark knight',
+            'lord of the rings',
+            'harry potter',
+            'indiana jones',
+            'jurassic park',
+            'iron man',
+            'back to the future',
+            'the godfather',
+        ];
+
+        foreach ($queries as $q) {
+            $this->loupe->search(SearchParameters::create()->withQuery($q));
+        }
+
     }
 
     public function benchExactQueryWithFacets(): void
