@@ -600,7 +600,7 @@ class Searcher
         $termsAlias = $this->engine->getIndexInfo()->getAliasForTable(IndexInfo::TABLE_NAME_TERMS);
 
         if ($needsTypoCount) {
-            $cteSelectQb->addSelect(sprintf('MIN(%s.typos) AS typos', $termMatchesCTE));
+            $cteSelectQb->addSelect(\sprintf('MIN(%s.typos) AS typos', $termMatchesCTE));
         } else {
             $cteSelectQb->addSelect('0 AS typos');
         }
