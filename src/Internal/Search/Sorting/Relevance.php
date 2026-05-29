@@ -45,6 +45,7 @@ class Relevance extends AbstractSorter
         $ctes = [];
         $relevances = [];
         $needsFoldingState = \in_array('exactness', $engine->getConfiguration()->getRankingRules(), true);
+        $missingPlaceholder = $needsFoldingState ? '0|0' : '0';
 
         foreach ($tokens as $token) {
             $cteName = $searcher->getCTENameForToken(Searcher::CTE_TERM_DOCUMENT_MATCHES_PREFIX, $token);
@@ -56,32 +57,20 @@ class Relevance extends AbstractSorter
 
             $termRelevanceCTE = $searcher->getCTENameForToken(self::CTE_NAME . '_term_', $token);
 
-            // Create the relevance CTE
+            // Aggregate from _cte_term_document_matches_N directly and let the outer merge COALESCE the missing ones to the placeholder string
             $qb = $engine->getConnection()->createQueryBuilder();
-            $qb
-                ->addSelect(Searcher::CTE_MATCHES . '.document_id AS document')
-                // COALESCE() makes sure that if the token does not match a document, we don't have NULL but a 0 which is important
-                // for the relevance split. Otherwise, the relevance calculation cannot know which of the documents did not match
-                // because it's just a ";" separated list.
-                ->from(Searcher::CTE_MATCHES)
-                ->leftJoin(
-                    Searcher::CTE_MATCHES,
-                    $cteName,
-                    'dm',
-                    \sprintf('dm.document = %s.document_id', Searcher::CTE_MATCHES)
-                )
-                ->groupBy(Searcher::CTE_MATCHES . '.document_id');
+            $qb->select('dm.document AS document_id')->from($cteName, 'dm')->groupBy('dm.document');
 
             if ($needsFoldingState) {
-                $qb->addSelect("COALESCE(group_concat(dm.position || ':' || dm.attribute || ':' || dm.typos), '0') || '|' || COALESCE(MAX(dm.exact_match), 0) AS relevance");
+                $qb->addSelect("group_concat(dm.position || ':' || dm.attribute || ':' || dm.typos) || '|' || MAX(dm.exact_match) AS relevance");
             } else {
-                $qb->addSelect("COALESCE(group_concat(dm.position || ':' || dm.attribute || ':' || dm.typos), '0' ) AS relevance");
+                $qb->addSelect("group_concat(dm.position || ':' || dm.attribute || ':' || dm.typos) AS relevance");
             }
 
             $searcher->addCTE(new Cte($termRelevanceCTE, ['document_id', 'relevance_per_term'], $qb));
 
             $ctes[] = $termRelevanceCTE;
-            $relevances[] = $termRelevanceCTE . '.relevance_per_term';
+            $relevances[] = \sprintf("COALESCE(%s.relevance_per_term, '%s')", $termRelevanceCTE, $missingPlaceholder);
         }
 
         if ($ctes === []) {
