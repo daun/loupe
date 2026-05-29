@@ -614,11 +614,12 @@ class Searcher
             ));
         }
 
-        $cteSelectQb->from(IndexInfo::TABLE_NAME_TERMS_DOCUMENTS, $termsDocumentsAlias);
+        // Join from term_matches CTE — not from terms_documents - to force primary key usage
+        $cteSelectQb->from($termMatchesCTE);
         $cteSelectQb->innerJoin(
-            $termsDocumentsAlias,
             $termMatchesCTE,
-            $termMatchesCTE,
+            IndexInfo::TABLE_NAME_TERMS_DOCUMENTS,
+            $termsDocumentsAlias . ' INDEXED BY sqlite_autoindex_terms_documents_1',
             \sprintf('%s.id = %s.term', $termMatchesCTE, $termsDocumentsAlias)
         );
 
