@@ -1182,7 +1182,8 @@ class Searcher
         $cteSelectQb->select('document');
         $cteSelectQb->from('(' . implode(' UNION ', $unionParts) . ')');
 
-        $this->addCTE(new Cte(self::CTE_CANDIDATE_DOCUMENTS, ['document'], $cteSelectQb));
+        // Mark CTE as MATERIALIZED so SQLite doesn't inline/recompute the UNION at every callsite
+        $this->addCTE(new Cte(self::CTE_CANDIDATE_DOCUMENTS, ['document'], $cteSelectQb, [], true));
 
         return true;
     }
@@ -1418,9 +1419,10 @@ class Searcher
             $queryParts[] = 'WITH';
             foreach ($this->ctesByName as $name => $cte) {
                 $queryParts[] = \sprintf(
-                    '%s (%s) AS (%s)',
+                    '%s (%s) AS %s(%s)',
                     $name,
                     implode(',', $cte->getColumnAliasList()),
+                    $cte->isMaterialized() ? 'MATERIALIZED ' : '',
                     $cte->getQueryBuilder()->getSQL()
                 );
                 $queryParts[] = ',';

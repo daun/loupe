@@ -17,6 +17,7 @@ class Cte
         private array $columnAliasList,
         private QueryBuilder $queryBuilder,
         private array $tags = [],
+        private bool $materialized = false,
     ) {
     }
 
@@ -44,5 +45,10 @@ class Cte
     public function getTags(): array
     {
         return $this->tags;
+    }
+
+    public function isMaterialized(): bool
+    {
+        return $this->materialized;
     }
 }
