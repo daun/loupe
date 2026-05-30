@@ -6,16 +6,21 @@ namespace Loupe\Loupe\Tests\Benchmark;
 
 use Loupe\Loupe\Loupe;
 use Loupe\Loupe\SearchParameters;
+use PhpBench\Attributes\BeforeClassMethods;
+use PhpBench\Attributes\BeforeMethods;
+use PhpBench\Attributes\Groups;
+use PhpBench\Attributes\Iterations;
+use PhpBench\Attributes\OutputTimeUnit;
+use PhpBench\Attributes\Revs;
+use PhpBench\Attributes\Warmup;
 
-/**
- * @BeforeClassMethods({"setUpClass"})
- * @BeforeMethods({"setUp"})
- * @Revs(3)
- * @Iterations(5)
- * @Warmup(2)
- * @OutputTimeUnit("milliseconds", precision=2)
- * @Groups({"query"})
- */
+#[BeforeClassMethods('setUpClass')]
+#[BeforeMethods('setUp')]
+#[Revs(3)]
+#[Iterations(5)]
+#[Warmup(2)]
+#[OutputTimeUnit('milliseconds', precision: 2)]
+#[Groups(['query'])]
 class FilterBench extends AbstractBench
 {
     private Loupe $loupe;

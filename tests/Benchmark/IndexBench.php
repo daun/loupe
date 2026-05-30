@@ -5,16 +5,22 @@ declare(strict_types=1);
 namespace Loupe\Loupe\Tests\Benchmark;
 
 use Loupe\Loupe\Loupe;
+use PhpBench\Attributes\BeforeClassMethods;
+use PhpBench\Attributes\BeforeMethods;
+use PhpBench\Attributes\Groups;
+use PhpBench\Attributes\Iterations;
+use PhpBench\Attributes\OutputTimeUnit;
+use PhpBench\Attributes\ParamProviders;
+use PhpBench\Attributes\Revs;
+use PhpBench\Attributes\Warmup;
 
-/**
- * @BeforeClassMethods({"setUpClass"})
- * @BeforeMethods({"setUp"})
- * @Revs(1)
- * @Iterations(1)
- * @Warmup(1)
- * @OutputTimeUnit("milliseconds", precision=2)
- * @Groups({"index"})
- */
+#[BeforeClassMethods('setUpClass')]
+#[BeforeMethods('setUp')]
+#[Revs(1)]
+#[Iterations(1)]
+#[Warmup(1)]
+#[OutputTimeUnit('milliseconds', precision: 2)]
+#[Groups(['index'])]
 class IndexBench extends AbstractBench
 {
     private Loupe $loupe;
@@ -40,9 +46,7 @@ class IndexBench extends AbstractBench
             : $movies;
     }
 
-    /**
-     * @ParamProviders({"provideCorpus"})
-     */
+    #[ParamProviders('provideCorpus')]
     public function benchAddDocuments(): void
     {
         $this->loupe->addDocuments($this->movies);
@@ -51,10 +55,9 @@ class IndexBench extends AbstractBench
     /**
      * Re-indexes the same documents on top of an already-populated index,
      * exercising the upsert path rather than cold insert.
-     *
-     * @BeforeMethods({"setUpForUpdate"})
-     * @ParamProviders({"provideCorpus"})
      */
+    #[BeforeMethods('setUpForUpdate')]
+    #[ParamProviders('provideCorpus')]
     public function benchUpdateDocuments(): void
     {
         $this->loupe->addDocuments($this->movies);
@@ -68,7 +71,9 @@ class IndexBench extends AbstractBench
         yield '10k' => [
             'size' => 10_000,
         ];
-        // yield 'all' => ['size' => 0];
+        yield 'all' => [
+            'size' => 0,
+        ];
     }
 
     public static function setUpClass(): void
