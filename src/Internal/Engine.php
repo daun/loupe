@@ -7,6 +7,7 @@ namespace Loupe\Loupe\Internal;
 use Composer\InstalledVersions;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
+use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Loupe\Loupe\BrowseParameters;
 use Loupe\Loupe\BrowseResult;
@@ -44,7 +45,7 @@ use Toflar\StateSetIndex\StateSetIndex;
 
 class Engine
 {
-    public const VERSION = '0.13.3'; // Increase this whenever a re-index of all documents is needed
+    public const VERSION = '0.13.4'; // Increase this whenever a re-index of all documents is needed
 
     private const SQLITE_FUNCTION_CACHE_MAX_ENTRIES = 100000;
 
@@ -381,9 +382,22 @@ class Engine
         $queryBuilder = $this->getConnection()->createQueryBuilder()
             ->from(IndexInfo::TABLE_NAME_DOCUMENTS, $documentsAlias)
             ->orderBy($documentsAlias.'._id', 'ASC')
-            ->setFirstResult($offset)
             ->setMaxResults($limit)
         ;
+
+        if ($offset > 0) {
+            // An OFFSET makes SQLite walk the table b-tree and read a page per skipped document. Resolving the id at
+            // that offset from the documents_id index instead touches only index pages, and the outer scan then starts
+            // at the page the caller asked for. Row offsets are preserved, so deleted ids leave no gaps.
+            $queryBuilder
+                ->where(\sprintf(
+                    '%s._id >= (SELECT _id FROM %s ORDER BY _id ASC LIMIT 1 OFFSET :__loupe_offset)',
+                    $documentsAlias,
+                    IndexInfo::TABLE_NAME_DOCUMENTS,
+                ))
+                ->setParameter('__loupe_offset', $offset, ParameterType::INTEGER)
+            ;
+        }
 
         $hits = $this->fetchBrowseHits($queryBuilder, $documentsAlias, $parameters->getAttributesToRetrieve());
         $totalHits = [] === $hits ? 0 : $this->countDocuments();

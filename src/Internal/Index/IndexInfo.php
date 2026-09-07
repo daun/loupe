@@ -459,6 +459,10 @@ class IndexInfo
         $table->addUniqueIndex(['_user_id']);
         $table->addUniqueIndex(['_hash']);
 
+        // _id is the rowid, so paging with OFFSET walks the table b-tree and reads a page per skipped document.
+        // This index holds the ids alone, letting SQLite skip to a page boundary without touching any document.
+        $table->addIndex(['_id'], 'documents_id');
+
         $columns = [];
 
         foreach ($this->getSingleFilterableAndSortableAttributes() as $attribute) {
