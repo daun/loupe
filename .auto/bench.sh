@@ -7,10 +7,12 @@ OUT=$(vendor/bin/phpbench run --report=aggregate --group=browse --progress=none 
 echo "$OUT"
 
 echo "$OUT" | awk -F'|' '
-/benchBrowsePrimaryKey/     { print "pk", $8 }
-/benchBrowseSubset  *\|/    { print "subset", $8 }
-/benchBrowseWholeDocument/  { print "whole", $8 }
-/benchBrowseSubsetFiltered/ { print "filtered", $8 }
+/benchBrowseLargeSubset/        { print "large_subset", $8 }
+/benchBrowseLargeWholeDocument/ { print "large_whole", $8 }
+/benchBrowsePrimaryKey/         { print "pk", $8 }
+/benchBrowseSubset  *\|/        { print "subset", $8 }
+/benchBrowseSubsetFiltered/     { print "filtered", $8 }
+/benchBrowseWholeDocument  *\|/ { print "whole", $8 }
 ' | while read -r name val; do
   v=$(echo "$val" | tr -d ' ,' | sed 's/ms$//')
   echo "METRIC ${name}_ms=${v}"
