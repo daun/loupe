@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Loupe\Loupe\Internal\Index;
 
+use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Types\Types;
 use Loupe\Loupe\Configuration;
@@ -18,6 +19,8 @@ use Loupe\Loupe\Internal\Util;
 
 class IndexInfo
 {
+    public const INDEX_NAME_DOCUMENTS_ID = 'documents_id';
+
     public const INDEX_NAME_TERMS_DOCUMENTS_SEARCH = 'terms_documents_search';
 
     public const TABLE_NAME_DOCUMENTS = 'documents';
@@ -459,9 +462,10 @@ class IndexInfo
         $table->addUniqueIndex(['_user_id']);
         $table->addUniqueIndex(['_hash']);
 
-        // _id is the rowid, so paging with OFFSET walks the table b-tree and reads a page per skipped document.
-        // This index holds the ids alone, letting SQLite skip to a page boundary without touching any document.
-        $table->addIndex(['_id'], 'documents_id');
+        // _id is the rowid, so paging with OFFSET walks the table b-tree and reads a page per skipped document. This
+        // index holds the ids alone, letting SQLite skip to a page boundary without touching any document. It is
+        // created partial, see makeDocumentsIdIndexPartial().
+        $table->addIndex(['_id'], self::INDEX_NAME_DOCUMENTS_ID);
 
         $columns = [];
 
@@ -749,5 +753,36 @@ class IndexInfo
 
         $schemaDiff = $comparator->compareSchemas($schemaManager->introspectSchema(), $this->getSchema());
         $schemaManager->alterSchema($schemaDiff);
+
+        $this->makeDocumentsIdIndexPartial($connection);
+    }
+
+    /**
+     * DBAL cannot express a partial index on SQLite, so the predicate is applied here. It matches every row, and its
+     * only purpose is to keep the planner from reaching for this index on its own: for a scan that goes on to read
+     * _document, picking it turns one sequential table scan into an index scan plus a rowid lookup per row. Only the
+     * browse offset lookup asks for it, by name and with the same predicate.
+     *
+     * DBAL introspects a partial index as a plain one, so this survives further schema comparisons untouched.
+     */
+    private function makeDocumentsIdIndexPartial(Connection $connection): void
+    {
+        $statement = \sprintf(
+            'CREATE INDEX %s ON %s (_id) WHERE _id > 0',
+            self::INDEX_NAME_DOCUMENTS_ID,
+            self::TABLE_NAME_DOCUMENTS,
+        );
+
+        $existing = $connection->fetchOne(
+            "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
+            [self::INDEX_NAME_DOCUMENTS_ID],
+        );
+
+        if ($existing === $statement) {
+            return;
+        }
+
+        $connection->executeStatement('DROP INDEX IF EXISTS '.self::INDEX_NAME_DOCUMENTS_ID);
+        $connection->executeStatement($statement);
     }
 }

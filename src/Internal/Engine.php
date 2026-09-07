@@ -387,13 +387,16 @@ class Engine
 
         if ($offset > 0) {
             // An OFFSET makes SQLite walk the table b-tree and read a page per skipped document. Resolving the id at
-            // that offset from the documents_id index instead touches only index pages, and the outer scan then starts
-            // at the page the caller asked for. Row offsets are preserved, so deleted ids leave no gaps.
+            // that offset from the ids-only index instead touches only index pages, and the outer scan then starts at
+            // the page the caller asked for. Row offsets are preserved, so deleted ids leave no gaps.
+            // INDEXED BY and the redundant _id > 0 are both required: the index is partial on that predicate so that
+            // no other query plan picks it up.
             $queryBuilder
                 ->where(\sprintf(
-                    '%s._id >= (SELECT _id FROM %s ORDER BY _id ASC LIMIT 1 OFFSET :__loupe_offset)',
+                    '%s._id >= (SELECT _id FROM %s INDEXED BY %s WHERE _id > 0 ORDER BY _id ASC LIMIT 1 OFFSET :__loupe_offset)',
                     $documentsAlias,
                     IndexInfo::TABLE_NAME_DOCUMENTS,
+                    IndexInfo::INDEX_NAME_DOCUMENTS_ID,
                 ))
                 ->setParameter('__loupe_offset', $offset, ParameterType::INTEGER)
             ;
