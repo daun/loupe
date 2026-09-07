@@ -7,6 +7,7 @@ namespace Loupe\Loupe\Internal;
 use Composer\InstalledVersions;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
+use Doctrine\DBAL\Query\QueryBuilder;
 use Loupe\Loupe\BrowseParameters;
 use Loupe\Loupe\BrowseResult;
 use Loupe\Loupe\Configuration;
@@ -126,9 +127,9 @@ class Engine
         $this->maybeWrapStateSetIndexWithCache();
 
         try {
-            if ($this->canBrowsePrimaryKeysDirectly($parameters)) {
+            if ($this->canBrowseDirectly($parameters)) {
                 // One transaction so the page and the total hit count see the same snapshot.
-                return $this->getConnection()->transactional(fn (): BrowseResult => $this->browsePrimaryKeys($parameters));
+                return $this->getConnection()->transactional(fn (): BrowseResult => $this->browseDocuments($parameters));
             }
 
             return (new Searcher($this, $this->filterParser, $parameters))->fetchResult();
@@ -361,10 +362,10 @@ class Engine
     }
 
     /**
-     * Browsing nothing but the primary key needs neither the document body nor any of the search pipeline: the
-     * documents table alone answers it in internal id order, which is the order browsing already returns.
+     * A browse without a query and without a filter matches every document, so the documents table alone answers it
+     * in internal id order, which is the order browsing already returns. That skips building the search pipeline.
      */
-    private function browsePrimaryKeys(BrowseParameters $parameters): BrowseResult
+    private function browseDocuments(BrowseParameters $parameters): BrowseResult
     {
         $start = (int) floor(microtime(true) * 1000);
 
@@ -376,22 +377,15 @@ class Engine
             $offset = (($parameters->getPage() ?? 1) - 1) * $limit;
         }
 
-        $primaryKey = $this->configuration->getPrimaryKey();
         $documentsAlias = $this->indexInfo->getAliasForTable(IndexInfo::TABLE_NAME_DOCUMENTS);
-
-        // json_extract() returns the value with its stored type, so an integer id stays an integer and a numeric
-        // string id stays a string, exactly as decoding the whole document would have produced it.
-        $ids = $this->getConnection()->createQueryBuilder()
-            ->select(\sprintf('json_extract(%s._document, :__loupe_pk_path)', $documentsAlias))
+        $queryBuilder = $this->getConnection()->createQueryBuilder()
             ->from(IndexInfo::TABLE_NAME_DOCUMENTS, $documentsAlias)
             ->orderBy($documentsAlias.'._id', 'ASC')
             ->setFirstResult($offset)
             ->setMaxResults($limit)
-            ->setParameter('__loupe_pk_path', '$.'.$primaryKey)
-            ->fetchFirstColumn()
         ;
 
-        $hits = array_map(static fn (mixed $id): array => [$primaryKey => $id], $ids);
+        $hits = $this->fetchBrowseHits($queryBuilder, $documentsAlias, $parameters->getAttributesToRetrieve());
         $totalHits = [] === $hits ? 0 : $this->countDocuments();
         $totalPages = 0 === $limit ? 0 : (int) ceil($totalHits / $limit);
         $currentPage = 0 === $limit ? 0 : (int) floor($offset / $limit) + 1;
@@ -407,13 +401,47 @@ class Engine
         );
     }
 
-    private function canBrowsePrimaryKeysDirectly(BrowseParameters $parameters): bool
+    private function canBrowseDirectly(BrowseParameters $parameters): bool
     {
         return '' === $parameters->getQuery()
             && '' === $parameters->getFilter()
-            && [$this->configuration->getPrimaryKey()] === $parameters->getAttributesToRetrieve()
             && $parameters->getOffset() >= 0
             && $parameters->getLimit() >= 0;
+    }
+
+    /**
+     * @param array<string> $attributesToRetrieve
+     *
+     * @return array<array<string, mixed>>
+     */
+    private function fetchBrowseHits(QueryBuilder $queryBuilder, string $documentsAlias, array $attributesToRetrieve): array
+    {
+        $primaryKey = $this->configuration->getPrimaryKey();
+
+        if ([$primaryKey] === $attributesToRetrieve) {
+            // json_extract() returns the value with its stored type, so an integer id stays an integer and a numeric
+            // string id stays a string, exactly as decoding the whole document would have produced it.
+            $ids = $queryBuilder
+                ->select(\sprintf('json_extract(%s._document, :__loupe_pk_path)', $documentsAlias))
+                ->setParameter('__loupe_pk_path', '$.'.$primaryKey)
+                ->fetchFirstColumn()
+            ;
+
+            return array_map(static fn (mixed $id): array => [$primaryKey => $id], $ids);
+        }
+
+        $documents = $queryBuilder->select($documentsAlias.'._document')->fetchFirstColumn();
+
+        if (\in_array('*', $attributesToRetrieve, true)) {
+            return array_map(Util::decodeJson(...), $documents);
+        }
+
+        $keep = array_flip($attributesToRetrieve);
+
+        return array_map(
+            static fn (string $document): array => array_intersect_key(Util::decodeJson($document), $keep),
+            $documents,
+        );
     }
 
     private function executeIndexOperation(callable $operation): void
