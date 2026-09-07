@@ -126,6 +126,11 @@ class Engine
         $this->maybeWrapStateSetIndexWithCache();
 
         try {
+            if ($this->canBrowsePrimaryKeysDirectly($parameters)) {
+                // One transaction so the page and the total hit count see the same snapshot.
+                return $this->getConnection()->transactional(fn (): BrowseResult => $this->browsePrimaryKeys($parameters));
+            }
+
             return (new Searcher($this, $this->filterParser, $parameters))->fetchResult();
         } catch (Exception $exception) {
             // If we need a re-index (e.g. schema has changed via an update from an old to a newer Loupe version)
@@ -353,6 +358,62 @@ class Engine
             ->executeQuery('SELECT (SELECT page_count FROM pragma_page_count) * (SELECT page_size FROM pragma_page_size)')
             ->fetchOne()
         ;
+    }
+
+    /**
+     * Browsing nothing but the primary key needs neither the document body nor any of the search pipeline: the
+     * documents table alone answers it in internal id order, which is the order browsing already returns.
+     */
+    private function browsePrimaryKeys(BrowseParameters $parameters): BrowseResult
+    {
+        $start = (int) floor(microtime(true) * 1000);
+
+        $limit = $parameters->getLimit();
+        $offset = $parameters->getOffset();
+
+        if (null !== $parameters->getHitsPerPage() || null !== $parameters->getPage()) {
+            $limit = $parameters->getHitsPerPage() ?? SearchParameters::MAX_LIMIT;
+            $offset = (($parameters->getPage() ?? 1) - 1) * $limit;
+        }
+
+        $primaryKey = $this->configuration->getPrimaryKey();
+        $documentsAlias = $this->indexInfo->getAliasForTable(IndexInfo::TABLE_NAME_DOCUMENTS);
+
+        // json_extract() returns the value with its stored type, so an integer id stays an integer and a numeric
+        // string id stays a string, exactly as decoding the whole document would have produced it.
+        $ids = $this->getConnection()->createQueryBuilder()
+            ->select(\sprintf('json_extract(%s._document, :__loupe_pk_path)', $documentsAlias))
+            ->from(IndexInfo::TABLE_NAME_DOCUMENTS, $documentsAlias)
+            ->orderBy($documentsAlias.'._id', 'ASC')
+            ->setFirstResult($offset)
+            ->setMaxResults($limit)
+            ->setParameter('__loupe_pk_path', '$.'.$primaryKey)
+            ->fetchFirstColumn()
+        ;
+
+        $hits = array_map(static fn (mixed $id): array => [$primaryKey => $id], $ids);
+        $totalHits = [] === $hits ? 0 : $this->countDocuments();
+        $totalPages = 0 === $limit ? 0 : (int) ceil($totalHits / $limit);
+        $currentPage = 0 === $limit ? 0 : (int) floor($offset / $limit) + 1;
+
+        return new BrowseResult(
+            $hits,
+            $parameters->getQuery(),
+            (int) floor(microtime(true) * 1000) - $start,
+            $limit,
+            $currentPage,
+            $totalPages,
+            $totalHits,
+        );
+    }
+
+    private function canBrowsePrimaryKeysDirectly(BrowseParameters $parameters): bool
+    {
+        return '' === $parameters->getQuery()
+            && '' === $parameters->getFilter()
+            && [$this->configuration->getPrimaryKey()] === $parameters->getAttributesToRetrieve()
+            && $parameters->getOffset() >= 0
+            && $parameters->getLimit() >= 0;
     }
 
     private function executeIndexOperation(callable $operation): void
