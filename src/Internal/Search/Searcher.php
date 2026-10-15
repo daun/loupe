@@ -70,6 +70,8 @@ class Searcher
 
     public const FACET_ALIAS_MIN_MAX_PREFIX = '_facet_minmax_';
 
+    public const FACETS_FROM_MATCHES_MAX_TOTAL_HITS = 3000;
+
     public const MATCH_POSITION_INFO_PREFIX = '_match_position_info_';
 
     public const RELEVANCE_ALIAS = '_relevance';
@@ -437,6 +439,24 @@ class Searcher
         return isset($this->ctesByName[$cteName]);
     }
 
+    /**
+     * Decide the join order for multi-value facets. Starting from the match set wins for selective searches
+     * (bounded by maxTotalHits) and with distinct, starting from the attribute relation wins when most of the index
+     * matches. Calculate FACETS_FROM_MATCHES_MAX_TOTAL_HITS by running tests/bin/calibrate-facet-join.php.
+     */
+    protected function shouldDriveFacetsFromMatches(): bool
+    {
+        if ($this->getSearchTokens()->empty()) {
+            return false;
+        }
+
+        if ($this->queryParameters instanceof SearchParameters && null !== $this->queryParameters->getDistinct()) {
+            return true;
+        }
+
+        return $this->engine->getConfiguration()->getMaxTotalHits() <= self::FACETS_FROM_MATCHES_MAX_TOTAL_HITS;
+    }
+
     private function addFromMatchesAndJoinMultiAttributes(QueryBuilder $qb, string $attribute): void
     {
         $multiDocumentsAlias = $this->engine->getIndexInfo()->getAliasForTable(IndexInfo::TABLE_NAME_MULTI_ATTRIBUTES_DOCUMENTS);
@@ -513,7 +533,7 @@ class Searcher
         $qb = $this->engine->getConnection()->createQueryBuilder();
 
         if ($this->engine->getIndexInfo()->isMultiFilterableAttribute($attribute)) {
-            if (null !== $searchParameters->getDistinct() && !$this->getSearchTokens()->empty()) {
+            if ($this->shouldDriveFacetsFromMatches()) {
                 $this->addFromMatchesAndJoinMultiAttributes($qb, $attribute);
             } else {
                 $this->addFromMultiAttributesAndJoinMatches($qb, $attribute);
